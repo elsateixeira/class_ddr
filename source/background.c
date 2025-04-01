@@ -846,8 +846,6 @@ int background_init(
              pba->error_message,
              pba->error_message);
 
-  pba->is_allocated = _TRUE_;
-
   return _SUCCESS_;
 
 }
@@ -871,8 +869,6 @@ int background_free(
   class_call(background_free_input(pba),
              pba->error_message,
              pba->error_message);
-
-  pba->is_allocated = _FALSE_;
 
   return _SUCCESS_;
 }
@@ -1119,6 +1115,12 @@ int background_indices(
 
   /* -> angular diameter distance */
   class_define_index(pba->index_bg_ang_distance,_TRUE_,index_bg,1);
+
+  /* [ET]: -> DDR violation */
+  class_define_index(pba->index_bg_alpha_ddr,_TRUE_,index_bg,1);
+
+  /* -> [ET]: angular diameter distance for BAO*/
+  class_define_index(pba->index_bg_ang_distance_ddr,_TRUE_,index_bg,1);
 
   /* -> luminosity distance */
   class_define_index(pba->index_bg_lum_distance,_TRUE_,index_bg,1);
@@ -1446,8 +1448,9 @@ int background_ncdm_init(
                                pba->error_message),
                  pba->error_message,
                  pba->error_message);
-      class_realloc(pba->q_ncdm[k],pba->q_size_ncdm[k]*sizeof(double), pba->error_message);
-      class_realloc(pba->w_ncdm[k],pba->q_size_ncdm[k]*sizeof(double), pba->error_message);
+      pba->q_ncdm[k]=realloc(pba->q_ncdm[k],pba->q_size_ncdm[k]*sizeof(double));
+      pba->w_ncdm[k]=realloc(pba->w_ncdm[k],pba->q_size_ncdm[k]*sizeof(double));
+
 
       if (pba->background_verbose > 0) {
         printf("ncdm species i=%d sampled with %d points for purpose of perturbation integration\n",
@@ -1473,8 +1476,8 @@ int background_ncdm_init(
                  pba->error_message,
                  pba->error_message);
 
-      class_realloc(pba->q_ncdm_bg[k],pba->q_size_ncdm_bg[k]*sizeof(double), pba->error_message);
-      class_realloc(pba->w_ncdm_bg[k],pba->q_size_ncdm_bg[k]*sizeof(double), pba->error_message);
+      pba->q_ncdm_bg[k]=realloc(pba->q_ncdm_bg[k],pba->q_size_ncdm_bg[k]*sizeof(double));
+      pba->w_ncdm_bg[k]=realloc(pba->w_ncdm_bg[k],pba->q_size_ncdm_bg[k]*sizeof(double));
 
       /** - in verbose mode, inform user of number of sampled momenta
           for background quantities */
@@ -1889,9 +1892,9 @@ int background_solve(
   double conformal_distance;
 
   /* evolvers */
-  extern int evolver_rk(EVOLVER_PROTOTYPE);
-  extern int evolver_ndf15(EVOLVER_PROTOTYPE);
-  int (*generic_evolver)(EVOLVER_PROTOTYPE) = evolver_ndf15;
+  extern int evolver_rk();
+  extern int evolver_ndf15();
+  int (*generic_evolver)() = evolver_ndf15;
 
   /* initial and final loga values */
   double loga_ini, loga_final;
@@ -2009,6 +2012,8 @@ int background_solve(
     else if (pba->sgnK == -1) { comoving_radius = sinh(sqrt(-pba->K)*conformal_distance)/sqrt(-pba->K); }
 
     pba->background_table[index_loga*pba->bg_size+pba->index_bg_ang_distance] = comoving_radius/(1.+pba->z_table[index_loga]);
+    // [ET]: Include the DDR violation directly in the computation of the angular diameter distance for the BAO calculation
+    pba->background_table[index_loga*pba->bg_size+pba->index_bg_ang_distance_ddr] = comoving_radius/(1.+pba->z_table[index_loga])*(1.+alpha_ddr(pba, pba->z_table[index_loga]));
     pba->background_table[index_loga*pba->bg_size+pba->index_bg_lum_distance] = comoving_radius*(1.+pba->z_table[index_loga]);
   }
 
@@ -2443,9 +2448,9 @@ int background_output_titles(
   class_store_columntitle(titles,"(.)rho_idm",pba->has_idm);
   if (pba->has_ncdm == _TRUE_) {
     for (n=0; n<pba->N_ncdm; n++) {
-      class_sprintf(tmp,"(.)rho_ncdm[%d]",n);
+      sprintf(tmp,"(.)rho_ncdm[%d]",n);
       class_store_columntitle(titles,tmp,_TRUE_);
-      class_sprintf(tmp,"(.)p_ncdm[%d]",n);
+      sprintf(tmp,"(.)p_ncdm[%d]",n);
       class_store_columntitle(titles,tmp,_TRUE_);
     }
   }
@@ -2510,6 +2515,9 @@ int background_output_data(
     class_store_double(dataptr,pvecback[pba->index_bg_H],_TRUE_,storeidx);
     class_store_double(dataptr,pvecback[pba->index_bg_conf_distance],_TRUE_,storeidx);
     class_store_double(dataptr,pvecback[pba->index_bg_ang_distance],_TRUE_,storeidx);
+    // [ET]: Store DDR violation as a variable
+    class_store_double(dataptr,pvecback[pba->index_bg_alpha_ddr],_TRUE_,storeidx);
+    class_store_double(dataptr,pvecback[pba->index_bg_ang_distance_ddr],_TRUE_,storeidx);
     class_store_double(dataptr,pvecback[pba->index_bg_lum_distance],_TRUE_,storeidx);
     class_store_double(dataptr,pvecback[pba->index_bg_rs],_TRUE_,storeidx);
     class_store_double(dataptr,pvecback[pba->index_bg_rho_g],_TRUE_,storeidx);
@@ -2998,4 +3006,50 @@ double ddV_scf(
                struct background *pba,
                double phi) {
   return ddV_e_scf(pba,phi)*V_p_scf(pba,phi) + 2*dV_e_scf(pba,phi)*dV_p_scf(pba,phi) + V_e_scf(pba,phi)*ddV_p_scf(pba,phi);
+}
+
+// [ET]: Define the functional form of the DDR violation to add in angular diameter distance computation. Have to include in the input file the value of the flag eta_func for the if loop
+double alpha_ddr(
+               struct background *pba,
+               double z) {
+
+  int eta_func  = pba->eta_function;
+  double alpha0  = pba->alpha0_ddr;
+  double alpha1  = pba->alpha1_ddr;
+  double z_star  = pba->zstar_ddr;
+
+  /** Constant DDR Violation */
+  if (eta_func == 1){
+    return alpha0;
+  }
+  /** Linear DDR Violation */
+  else if (eta_func == 2){
+    return alpha0 + alpha1*z;
+  }
+  /** Constant Power Law DDR Violation */
+  else if (eta_func == 3){
+    return (-1.+pow((1.+z),alpha0));
+  }
+  /** Linear Power Law DDR Violation */
+  else if (eta_func == 4){
+    if (z < z_star){
+      return alpha0;
+    }
+    else { 
+      return alpha1;
+    }
+  }
+  /** Step Function DDR Violation */
+  else if (eta_func == 5){
+    if (z < z_star){
+      return (-1.+pow((1.+z),alpha0));
+    }
+    else { 
+      return (-1.+pow((1.+z),alpha1));
+    }
+  }
+  else {
+    return 0;
+  }
+
 }

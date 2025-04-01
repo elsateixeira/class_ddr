@@ -10,6 +10,10 @@
 #include "dei_rkck.h"
 #include "parser.h"
 
+/** list of possible types of spatial curvature */
+
+enum spatial_curvature {flat,open,closed};
+
 /** list of possible parametrisations of the DE equation of state */
 
 enum equation_of_state {CLP,EDE};
@@ -54,6 +58,12 @@ struct background
    * e.g. for dark energy or decaying dark matter). */
 
   //@{
+
+  // [ET]: Add DDR violation functions
+  int eta_function;   /**< \f$ eta_function \f$: flag for functional form of the DDR violation */
+  double alpha0_ddr;   /**< \f$ alpha0_ddr \f$: constant parameter in the DDR violation */
+  double alpha1_ddr;   /**< \f$ alpha1_ddr \f$: linear parameter in the DDR violation */
+  double zstar_ddr;   /**< \f$ zstar_ddr \f$: redshift transition parameter in the DDR violation */
 
   double H0; /**< \f$ H_0 \f$: Hubble parameter (in fact, [\f$H_0/c\f$]) in \f$ Mpc^{-1} \f$ */
   double h;  /**< reduced Hubble parameter */
@@ -198,6 +208,8 @@ struct background
   int index_bg_Omega_m;       /**< non-relativistic density fraction (\f$ \Omega_b + \Omega_cdm + \Omega_{\nu nr} \f$) */
   int index_bg_conf_distance; /**< conformal distance (from us) in Mpc */
   int index_bg_ang_distance;  /**< angular diameter distance in Mpc */
+  int index_bg_ang_distance_ddr;  /**< [ET]: angular diameter distance in Mpc for BAO */
+  int index_bg_alpha_ddr;  /**< [ET]: DDR violation */
   int index_bg_lum_distance;  /**< luminosity distance in Mpc */
   int index_bg_time;          /**< proper (cosmological) time in Mpc */
   int index_bg_rs;            /**< comoving sound horizon in Mpc */
@@ -324,7 +336,6 @@ struct background
 
   ErrorMsg error_message; /**< zone for writing error messages */
 
-  short is_allocated; /**< flag is set to true if allocated */
   //@}
 };
 
@@ -567,6 +578,12 @@ extern "C" {
                struct background *pba,
                double phi,
                double phi_prime
+               );
+
+  /** [ET]: Function that quantifies the DDR violation in computation of angular diameter distance **/
+  double alpha_ddr(
+               struct background *pba,
+               double z
                );
 
 #ifdef __cplusplus

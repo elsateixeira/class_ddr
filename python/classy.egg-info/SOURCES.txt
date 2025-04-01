@@ -1,0 +1,8 @@
+README
+setup.py
+/Users/elsateixeira/Downloads/class_public_rs/python/../python/classy.c
+/Users/elsateixeira/Downloads/class_public_rs/python/../python/classy.pyx
+classy.egg-info/PKG-INFO
+classy.egg-info/SOURCES.txt
+classy.egg-info/dependency_links.txt
+classy.egg-info/top_level.txt
