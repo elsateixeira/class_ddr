@@ -9,11 +9,11 @@ c=299792.458
 
 class Data:
     
-    def __init__(self, SN_path='data/binned_PanP.dat', BAO_path='data/DESI.dat', SDSS_path='data/SDSS.dat'):
+    def __init__(self, theory=None, SN_path='data/binned_PanP.dat', BAO_path='data/DESI.dat', SDSS_path='data/SDSS.dat'):
         self.SN_path = SN_path
         self.BAO_path = BAO_path   
         self.SDSS_path = SDSS_path         
-        self.theory = TheoryCalculator()
+        self.theory = theory if theory is not None else TheoryCalculator()
         
     def SN(self):
         with open(self.SN_path, 'r') as f:

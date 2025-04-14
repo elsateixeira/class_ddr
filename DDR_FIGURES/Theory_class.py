@@ -49,6 +49,9 @@ class TheoryCalculator:
     def get_luminosity_distance_ddr(self, z):
         return self.cosmo.angular_distance_ddr(z) * (1. + z) * (1. + z)
 
+    def get_eta_ddr(self, z):
+        return self.cosmo.angular_distance_ddr(z)/self.cosmo.angular_distance(z)
+
     def get_distance_moduli_ddr(self, z):
         return 5 * np.log10(self.get_luminosity_distance_ddr(z)) + 25
 
